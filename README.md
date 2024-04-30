@@ -31,4 +31,22 @@ return [
 
 因此这里保留两个 endpoint 配置，便于支持各种情况
 
-`path`: 考虑到单个 bucket 既作为开发环境，有作为生成环境，提供一个 bucket 下的顶层目录来区分不同环境下产生的文件。如果不同环境有不同的 bucket 或者不区分环境，该配置可以忽略 
+`path`: 考虑到单个 bucket 既作为开发环境，又作为生成环境，提供一个 bucket 下的顶层目录来区分不同环境下产生的文件。如果不同环境有不同的 bucket 或者不区分环境，该配置可以忽略 
+
+## 方法
+
+### 服务端上传加密签名
+`$dir`设置文件前缀，防止文件重复，未传值时，系统默认使用 `日期+uuid+随机码` 进行文件前缀防止重复
+```php
+public function signUpload($dir = '', $maxSize = 1048576000){ ... }
+```
+返回参数
+```php
+return [
+    'access_id' => $accessKeyId,
+    'host' => $host,
+    'policy' => $base64Policy,
+    'signature' => $signature,
+    'dir' => $dir,
+];
+```
