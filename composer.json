@@ -16,7 +16,10 @@
         "laravel": {
             "providers": [
                 "Maxlcoder\\LaravelOss\\OssServiceProvider"
-            ]
+            ],
+            "aliases": {
+                "Oss": "Maxlcoder\\LaravelOss\\Oss"
+            }
         }
     }
 }
