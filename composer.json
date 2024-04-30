@@ -1,0 +1,14 @@
+{
+    "name": "maxlcoder/larave-oss",
+    "description": "阿里云 OSS Laravel 扩展",
+    "type": "library",
+    "require": {
+        "aliyuncs/oss-sdk-php": "^2.7"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Maxlcoder\\LaraveOss\\": "src/"
+        }
+    }
+}
