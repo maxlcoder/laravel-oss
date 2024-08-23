@@ -68,7 +68,7 @@ class Oss
     public function signUrl($object, $timeout = 600)
     {
         try {
-            $endpoint = $this->config['endpoint'] ?? 'https://oss-cn-hangzhou.aliyuncs.com';
+            $endpoint = 'https://oss-cn-hangzhou.aliyuncs.com';
             $ossClient = new OssClient($this->config['access_key'], $this->config['secret_key'], $endpoint, false);
             $bucket = $this->config['bucket'];
             return $ossClient->signUrl($bucket, urldecode($object), $timeout, 'GET');
