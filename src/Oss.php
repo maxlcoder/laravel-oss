@@ -3,7 +3,9 @@
 namespace Maxlcoder\LaravelOss;
 
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use OSS\OssClient;
 
 class Oss
 {
@@ -60,6 +62,38 @@ class Oss
             'signature' => $signature,
             'dir' => $dir,
         ];
+    }
+
+
+    public function signUrl($object, $timeout = 600)
+    {
+        try {
+            $endpoint = $this->config['endpoint'] ?? 'https://oss-cn-hangzhou.aliyuncs.com';
+            $ossClient = new OssClient($this->config['access_key'], $this->config['secret_key'], $endpoint, false);
+            $bucket = $this->config['bucket'];
+            return $ossClient->signUrl($bucket, urldecode($object), $timeout, 'GET');
+        } catch (\Exception $e) {
+            Log::error('Oss signUrl Fail: ' . $e->getMessage());
+            return '';
+        }
+    }
+
+
+    public function signDownload($object, $timeout = 600)
+    {
+        try {
+            $endpoint = $this->config['endpoint'] ?? 'https://oss-cn-hangzhou.aliyuncs.com';
+            $ossClient = new OssClient($this->config['access_key'], $this->config['secret_key'], $endpoint, false);
+            $bucket = $this->config['bucket'];
+            $options = [
+                'response-content-disposition' => 'attachment',
+            ];
+            return $ossClient->signUrl($bucket, urldecode($object), $timeout, 'GET', $options);
+        } catch (\Exception $e) {
+            Log::error('Oss signDownload Fail: ' . $e->getMessage());
+            return '';
+        }
+
     }
 
 
