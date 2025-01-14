@@ -5,6 +5,7 @@ namespace Maxlcoder\LaravelOss;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use OSS\Credentials\StaticCredentialsProvider;
 use OSS\OssClient;
 
 class Oss
@@ -94,6 +95,38 @@ class Oss
             return '';
         }
 
+    }
+
+
+    // 后端上传文本图片
+    public function uploadString($content, $fileName)
+    {
+        try {
+            $provider = new StaticCredentialsProvider($this->config['access_key'], $this->config['secret_key']);
+            $endpoint = $this->config['endpoint'] ?? 'https://oss-cn-hangzhou.aliyuncs.com';
+            $ossClient = new OssClient([
+                'provider' => $provider,
+                'endpoint' => $endpoint,
+                'signatureVersion' => OssClient::OSS_SIGNATURE_VERSION_V4,
+                'region' => $this->config['region'] ?? 'cn-hangzhou',
+            ]);
+            $bucket = $this->config['bucket'];
+            $dir = (!empty($this->config['path']) ? $this->config['path'] . '/' : '') . date('Y-m-d') . '/' . Str::uuid()->getHex()->toString() . Str::random(4) . '-';
+            $object = $dir . $fileName;
+
+            $result = $ossClient->putObject($bucket, $object, $content);
+            if (empty($result)) {
+                return '';
+            }
+            return [
+                'bucket' => $bucket,
+                'url' => $object,
+                'content-md5' => $result['content-md5'],
+            ];
+        } catch (\Exception $e) {
+            Log::error('Oss signDownload Fail: ' . $e->getMessage());
+            return '';
+        }
     }
 
 
