@@ -62,6 +62,7 @@ class Oss
             'policy' => $base64Policy,
             'signature' => $signature,
             'dir' => $dir,
+            'bucket' => $this->config['bucket'],
         ];
     }
 
