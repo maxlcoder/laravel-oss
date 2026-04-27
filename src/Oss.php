@@ -28,7 +28,7 @@ class Oss
      * @param  int  $maxSize 最大文件大小
      * @return array
      */
-    public function signUpload($dir = '', $maxSize = 1048576000, $isPublicRead = false)
+    public function signUpload($dir = '', $maxSize = 1048576000)
     {
         // 从环境变量中获取访问凭证。运行本示例代码之前，请确保已设置环境变量ALIBABA_CLOUD_ACCESS_KEY_ID和ALIBABA_CLOUD_ACCESS_KEY_SECRET。
         $accessKeyId = $this->config['access_key'];
@@ -52,10 +52,6 @@ class Oss
         // 表示用户上传的数据，必须是以$dir开始，不然上传会失败，这一步不是必须项，只是为了安全起见，防止用户通过policy上传到别人的目录。
         $start = [0 => 'starts-with', 1 => '$key', 2 => $dir];
         $conditions[] = $start;
-
-        if ($isPublicRead) {
-            $conditions[] = ['eq', '$x-oss-object-acl', 'public-read'];
-        }
 
         $arr = ['expiration' => $expiration, 'conditions' => $conditions];
         $policy = json_encode($arr);
