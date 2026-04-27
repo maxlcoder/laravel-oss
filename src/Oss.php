@@ -2,11 +2,15 @@
 
 namespace Maxlcoder\LaravelOss;
 
+use AlibabaCloud\Oss\V2\Client;
+use AlibabaCloud\Oss\V2\Config;
+use AlibabaCloud\Oss\V2\Credentials\StaticCredentialsProvider;
+use AlibabaCloud\Oss\V2\Models\ObjectACLType;
+use AlibabaCloud\Oss\V2\Models\PutObjectRequest;
 use Carbon\Carbon;
+use DateInterval;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use OSS\Credentials\StaticCredentialsProvider;
-use OSS\OssClient;
 
 class Oss
 {
@@ -18,7 +22,7 @@ class Oss
     }
 
     /**
-     * 前端直传，生成服务端签名地址
+     * 前端直传，表单上传，生成服务端签名
      *
      * @param  int  $maxSize 最大文件大小
      * @return array
@@ -34,9 +38,7 @@ class Oss
             $host = 'oss-cn-hangzhou.aliyuncs.com';
         }
         // 用户上传文件时指定的前缀。
-        if (empty($dir)) {
-            $dir = (!empty($this->config['path']) ? $this->config['path'] . '/' : '') . date('Y-m-d') . '/' . Str::uuid()->getHex()->toString() . Str::random(4) . '-';
-        }
+        $dir = (!empty($this->config['path']) ? $this->config['path'] . '/' : '') . date('Y-m-d') . '/' . Str::uuid()->getHex()->toString() . Str::random(4) . '-';
 
         //设置该policy超时时间是10s. 即这个policy过了这个有效时间，将不能访问。
         $expire = 30;
@@ -64,6 +66,60 @@ class Oss
             'dir' => $dir,
             'bucket' => $this->config['bucket'],
         ];
+    }
+
+    /**
+     * 前端直传，生成服务端签名地址
+     *
+     * @param  int  $maxSize 最大文件大小
+     * @return array
+     */
+    public function signUrlUploadV4($fileName = '', $isPublicRead = false, $expires = 600)
+    {
+        if (empty($fileName)) {
+            throw new \Exception('fileName 缺失');
+        }
+        if (!empty($expires) && $expires > 600) {
+            throw new \Exception('签名过期时间最大允许 10 分钟有效');
+        }
+        // 获取 ak & sk 存在多种形式，目前采用静态配置获取默认 ak 和 sk TODO 后续可以考虑使用 sts
+        $accessKeyId = $this->config['access_key'];
+        $accessKeySecret = $this->config['secret_key'];
+        $credentialsProvider = new StaticCredentialsProvider($accessKeyId, $accessKeySecret);
+        $config = Config::loadDefault();
+        $config->setCredentialsProvider($credentialsProvider);
+        $config->setRegion($this->config['region']); // 设置Bucket所在的地域
+
+        // 用户上传文件时指定的前缀。
+        $dir = (!empty($this->config['path']) ? $this->config['path'] . '/' : '') . date('Y-m-d') . '/' . Str::uuid()->getHex()->toString() . Str::random(4) . '/';
+        $file = $dir . $fileName;
+        // 创建OSS客户端实例
+        $client = new Client($config);
+
+        $acl = ObjectACLType::DEFAULT;
+        if ($isPublicRead) {
+            $acl = ObjectACLType::PUBLIC_READ;
+        }
+
+        // 创建PutObjectRequest对象，用于上传对象
+        $request = new PutObjectRequest(bucket: $this->config['bucket'], key: $file, acl: $acl);
+
+        $args = [
+            'expires' => new DateInterval('PT' . $expires . 'S'),
+        ];
+
+        // 调用presign方法生成预签名URL
+        $result = $client->presign($request, $args);
+
+        dd($result);
+        return [
+            'url' => $result->url,
+        ];
+    }
+
+    // 计算HMAC-SHA256
+    public function hmacsha256($key, $data) {
+        return hash_hmac('sha256', $data, $key, true);
     }
 
 

@@ -12,6 +12,7 @@ return [
     'secret_key' => env('OSS_SECRET_KEY'),
     'bucket' => env('OSS_BUCKET'),
     'path' => env('OSS_PATH', '')
+    'region' => env('OSS_REGION','cn-hangzhou'),
 ];
 
 ```
@@ -35,8 +36,7 @@ return [
 
 ## 方法
 
-### 服务端上传加密签名
-`$dir` 设置文件前缀，防止文件重复，未传值时，系统默认使用 `日期+uuid+随机码` 进行文件前缀防止重复  
+### 服务端上传（表单上传）
 `$maxSize` 最大支持的上传文件大小（字节数）
 ```php
 public function signUpload($dir = '', $maxSize = 1048576000){ ... }
@@ -49,5 +49,20 @@ return [
     'policy' => $base64Policy,
     'signature' => $signature,
     'dir' => $dir,
+];
+```
+
+### 服务端预签名上传
+`$filename` 最大支持的上传文件大小（字节数）
+`$isPublicRead` 是否公开读
+`$expires` 签名过期时间（默认最大支持 10 分钟）
+
+```php
+public function signUrlUploadV4($fileName, $isPublicRead = false, $expires = 600){ ... }
+```
+返回参数
+```php
+return [
+    'url' => 'http://xxxx',
 ];
 ```
