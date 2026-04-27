@@ -5,6 +5,7 @@ namespace Maxlcoder\LaravelOss;
 use AlibabaCloud\Oss\V2\Client;
 use AlibabaCloud\Oss\V2\Config;
 use AlibabaCloud\Oss\V2\Credentials\StaticCredentialsProvider;
+use AlibabaCloud\Oss\V2\Models\GetObjectRequest;
 use AlibabaCloud\Oss\V2\Models\ObjectACLType;
 use AlibabaCloud\Oss\V2\Models\PutObjectRequest;
 use Carbon\Carbon;
@@ -27,7 +28,7 @@ class Oss
      * @param  int  $maxSize 最大文件大小
      * @return array
      */
-    public function signUpload($dir = '', $maxSize = 1048576000)
+    public function signUpload($dir = '', $maxSize = 1048576000, $isPublicRead = false)
     {
         // 从环境变量中获取访问凭证。运行本示例代码之前，请确保已设置环境变量ALIBABA_CLOUD_ACCESS_KEY_ID和ALIBABA_CLOUD_ACCESS_KEY_SECRET。
         $accessKeyId = $this->config['access_key'];
@@ -51,6 +52,10 @@ class Oss
         // 表示用户上传的数据，必须是以$dir开始，不然上传会失败，这一步不是必须项，只是为了安全起见，防止用户通过policy上传到别人的目录。
         $start = [0 => 'starts-with', 1 => '$key', 2 => $dir];
         $conditions[] = $start;
+
+        if ($isPublicRead) {
+            $conditions[] = ['eq', '$x-oss-object-acl', 'public-read'];
+        }
 
         $arr = ['expiration' => $expiration, 'conditions' => $conditions];
         $policy = json_encode($arr);
@@ -110,8 +115,6 @@ class Oss
 
         // 调用presign方法生成预签名URL
         $result = $client->presign($request, $args);
-
-        dd($result);
         return [
             'url' => $result->url,
         ];
@@ -123,13 +126,24 @@ class Oss
     }
 
 
-    public function signUrl($object, $timeout = 600)
+    public function signUrl($object, $expire = 600)
     {
         try {
-            $endpoint = 'https://oss-cn-hangzhou.aliyuncs.com';
-            $ossClient = new OssClient($this->config['access_key'], $this->config['secret_key'], $endpoint, false);
-            $bucket = $this->config['bucket'];
-            return $ossClient->signUrl($bucket, urldecode($object), $timeout, 'GET');
+            $accessKeyId = $this->config['access_key'];
+            $accessKeySecret = $this->config['secret_key'];
+            $credentialsProvider = new StaticCredentialsProvider($accessKeyId, $accessKeySecret);
+            $config = Config::loadDefault();
+            $config->setCredentialsProvider($credentialsProvider);
+            $config->setRegion($this->config['region']); // 设置Bucket所在的地域
+            $client = new Client($config);
+
+            // 创建GetObjectRequest对象，用于下载对象
+            $request = new GetObjectRequest(bucket: $this->config['bucket'], key: $object);
+            // 调用presign方法生成预签名URL，设置过期时间
+            $result = $client->presign($request, [
+                'expires' => new \DateInterval("PT{$expire}S") // PT表示Period Time，S表示秒
+            ]);
+            return $result->url;
         } catch (\Exception $e) {
             Log::error('Oss signUrl Fail: ' . $e->getMessage());
             return '';
