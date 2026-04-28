@@ -8,12 +8,16 @@ use AlibabaCloud\Oss\V2\Config;
 use AlibabaCloud\Oss\V2\Credentials\StaticCredentialsProvider;
 use AlibabaCloud\Oss\V2\Models\GetObjectRequest;
 use AlibabaCloud\Oss\V2\Models\ObjectACLType;
+use AlibabaCloud\Oss\V2\Models\PutObjectAclRequest;
 use AlibabaCloud\Oss\V2\Models\PutObjectRequest;
 use Carbon\Carbon;
 use DateInterval;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
+/**
+ *
+ */
 class Oss
 {
     protected $config;
@@ -25,6 +29,13 @@ class Oss
     protected $bucket;
     protected $region;
     protected $path;
+
+    const OBJECT_ACL_TYPES = [
+        ObjectACLType::DEFAULT,
+        ObjectACLType::PRIVATE,
+        ObjectACLType::PUBLIC_READ,
+        ObjectACLType::PUBLIC_READ_WRITE,
+    ];
 
 
     public function __construct()
@@ -208,49 +219,48 @@ class Oss
     /**
      * 前端直传，生成服务端签名地址
      *
-     * @param  int  $maxSize 最大文件大小
-     * @return array
+     * @param string $fileName 文件名（带后缀）
+     * @param string $acl 权限
+     *                    - default 默认
+     *                    - private 私有
+     *                    - public-read 公共读
+     *                    - public-read-write
+     *
+     * @param integer $expires 过期时间
+     *
      */
-    public function signUrlUploadV4($fileName = '', $isPublicRead = false, $expires = 600)
+    public function signUrlUploadV4($fileName = '', $acl = ObjectACLType::DEFAULT, $expires = 600)
     {
+        if (!in_array($acl, self::OBJECT_ACL_TYPES)) {
+            throw new \Exception('对象权限不支持');
+        }
         if (empty($fileName)) {
             throw new \Exception('fileName 缺失');
         }
         if (!empty($expires) && $expires > 600) {
             throw new \Exception('签名过期时间最大允许 10 分钟有效');
         }
-        // 获取 ak & sk 存在多种形式，目前采用静态配置获取默认 ak 和 sk TODO 后续可以考虑使用 sts
-        $accessKeyId = $this->credential->getAccessKeyId();
-        $accessKeySecret = $this->credential->getAccessKeySecret();
-        $securityToken = $this->credential->getSecurityToken();
-        $credentialsProvider = new StaticCredentialsProvider($accessKeyId, $accessKeySecret, $securityToken);
-        $config = Config::loadDefault();
-        $config->setCredentialsProvider($credentialsProvider);
-        $config->setRegion($this->region); // 设置Bucket所在的地域
-
-        // 用户上传文件时指定的前缀。
-        $dir = (!empty($this->path) ? $this->path . '/' : '') . date('Y-m-d') . '/' . Str::uuid()->getHex()->toString() . Str::random(4) . '/';
-        $file = $dir . $fileName;
         // 创建OSS客户端实例
-        $client = new Client($config);
-
-        $acl = ObjectACLType::DEFAULT;
-        if ($isPublicRead) {
-            $acl = ObjectACLType::PUBLIC_READ;
+        try {
+            $client = $this->getClient();
+            // 用户上传文件时指定的前缀。
+            $dir = (!empty($this->path) ? $this->path . '/' : '') . date('Y-m-d') . '/' . Str::uuid()->getHex()->toString() . Str::random(4) . '/';
+            $file = $dir . $fileName;
+            // 创建PutObjectRequest对象，用于上传对象
+            $request = new PutObjectRequest(bucket: $this->bucket, key: $file, acl: $acl);
+            $args = [
+                'expires' => new DateInterval('PT' . $expires . 'S'),
+            ];
+            // 调用presign方法生成预签名URL
+            $result = $client->presign($request, $args);
+            return [
+                'url' => $result->url,
+            ];
+        } catch (\Exception $e) {
+            Log::error('Oss signUrl Fail: ' . $e->getMessage());
+            throw new \Exception('Oss signUrl Fail: ' . $e->getMessage());
         }
 
-        // 创建PutObjectRequest对象，用于上传对象
-        $request = new PutObjectRequest(bucket: $this->bucket, key: $file, acl: $acl);
-
-        $args = [
-            'expires' => new DateInterval('PT' . $expires . 'S'),
-        ];
-
-        // 调用presign方法生成预签名URL
-        $result = $client->presign($request, $args);
-        return [
-            'url' => $result->url,
-        ];
     }
 
     // 计算HMAC-SHA256
@@ -261,15 +271,7 @@ class Oss
     public function signUrl($object, $expire = 600)
     {
         try {
-            $accessKeyId = $this->getCredential()->getAccessKeyId();
-            $accessKeySecret = $this->getCredential()->getAccessKeySecret();
-            $securityToken = $this->getCredential()->getSecurityToken();
-            $credentialsProvider = new StaticCredentialsProvider($accessKeyId, $accessKeySecret, $securityToken);
-            $config = Config::loadDefault();
-            $config->setCredentialsProvider($credentialsProvider);
-            $config->setRegion($this->region); // 设置Bucket所在的地域
-            $client = new Client($config);
-
+            $client = $this->getClient();
             // 创建GetObjectRequest对象，用于下载对象
             $request = new GetObjectRequest(bucket: $this->bucket, key: $object);
             // 调用presign方法生成预签名URL，设置过期时间
@@ -281,5 +283,29 @@ class Oss
             Log::error('Oss signUrl Fail: ' . $e->getMessage());
             return '';
         }
+    }
+
+    public function putObjectAcl($object, $acl = ObjectACLType::DEFAULT) {
+        try {
+            $client = $this->getClient();
+            $request = new PutObjectAclRequest(bucket: $this->bucket, key: $object, acl: $acl);
+            $result = $client->putObjectAcl($request);
+            dd($result);
+            return $result->url;
+        } catch (\Exception $e) {
+            Log::error('Oss putObjectAcl Fail: ' . $e->getMessage());
+            return '';
+        }
+    }
+
+    private function getClient() {
+        $accessKeyId = $this->credential->getAccessKeyId();
+        $accessKeySecret = $this->credential->getAccessKeySecret();
+        $securityToken = $this->credential->getSecurityToken();
+        $credentialsProvider = new StaticCredentialsProvider($accessKeyId, $accessKeySecret, $securityToken);
+        $config = Config::loadDefault();
+        $config->setCredentialsProvider($credentialsProvider);
+        $config->setRegion($this->region); // 设置Bucket所在的地域
+        return new Client($config);
     }
 }
