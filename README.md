@@ -11,8 +11,10 @@ return [
     'access_key' => env('OSS_ACCESS_KEY'),
     'secret_key' => env('OSS_SECRET_KEY'),
     'bucket' => env('OSS_BUCKET'),
-    'path' => env('OSS_PATH', '')
-    'region' => env('OSS_REGION','cn-hangzhou'),
+    'path' => env('OSS_PATH', ''),
+    'region' => env('OSS_REGION', 'cn-hangzhou'),
+    'role_arn' => env('OSS_ROLE_ARN', ''),
+    'role_session_name' => env('OSS_ROLE_SESSION_NAME', ''),
 ];
 
 ```
@@ -54,11 +56,11 @@ return [
 
 ### 服务端预签名上传
 `$filename` 最大支持的上传文件大小（字节数）
-`$isPublicRead` 是否公开读
+`$acl` 权限 默认: default 私有: private 公共读: public-read 公共读写: public-read-write
 `$expires` 签名过期时间（默认最大支持 10 分钟）
 
 ```php
-public function signUrlUploadV4($fileName, $isPublicRead = false, $expires = 600){ ... }
+public function signUrlUploadV4($fileName, $acl = 'default', $expires = 600){ ... }
 ```
 返回参数
 ```php
