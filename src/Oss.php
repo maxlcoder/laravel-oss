@@ -142,7 +142,7 @@ class Oss
             'policy' => $base64Policy,
             'signature' => $signature,
             'dir' => $dir,
-            'bucket' => $this->config['bucket'],
+            'bucket' => $this->bucket,
         ];
     }
 
@@ -290,11 +290,12 @@ class Oss
             $client = $this->getClient();
             $request = new PutObjectAclRequest(bucket: $this->bucket, key: $object, acl: $acl);
             $result = $client->putObjectAcl($request);
-            dd($result);
-            return $result->url;
+            if ($result->statusCode != 0) {
+                throw new \Exception('Oss putObjectAcl Fail');
+            }
         } catch (\Exception $e) {
             Log::error('Oss putObjectAcl Fail: ' . $e->getMessage());
-            return '';
+            throw new \Exception('Oss signUrl Fail: ' . $e->getMessage());
         }
     }
 
